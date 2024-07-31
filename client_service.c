@@ -33,7 +33,7 @@ send_svc_req(int sockfd, const char *path, int64_t flen,  enum ACCESS_LEVEL alv,
 		fname += sizeof(char);
 
 	strncpy(req.fname, fname, FILE_NAME_LEN);
-	snprintf(req.flen, REQ_FLEN_LEN, "%d", flen);
+	snprintf(req.flen, REQ_FLEN_LEN, "%ld", flen);
 	snprintf(req.alv, REQ_ALV_LEN, "%d", alv);
 inquiry_req:
 	snprintf(req.type, SVC_TYPE_LEN, "%d", type);
@@ -105,7 +105,7 @@ client_upload_service(int sockfd, const char *path,
 		goto tx_failed;
 	}
 
-	printf("\033[2KWait...");
+	printf("\033[2K\033[GWait...");
 	fflush(stdout);
 
 	// Receive svc_resp.
@@ -141,6 +141,25 @@ client_upload_service(int sockfd, const char *path,
 	if (send_file(sockfd, path, flen, rate) < 0)
 		goto tx_failed;
 
+	/*
+	 * 서버가 파일을 받은 뒤 파일을 디스크에 내리린다.
+	 * 서버가 다운되지 않는 이상 디스크에 내리는 작업의 성공 여부를
+	 * 반환하기 때문에 계속 기다린다.
+	 *
+	 * timeout을 설정할 경우 아래와 같은 문제를 해결해야 한다.
+	 * timeout으로 tx_failed로 갔는데 서버가 그 뒤에 응답을 보낼 경우
+	 * 클라이언트는 다음 서비스에서 그 응답을 읽으면서 프로토콜이 깨지게 된다.
+	 * 사실 위의 모든 tx_failed가 그렇다...
+	 * g_servsock을 닫았다가 다시 여는 방법으로 해결할 수 있다.
+	 */
+	if (set_socket_timeout(sockfd, 0) < 0) {
+		strncpy(svc_errinfo, "[set_socket_timeout]", ERRSTR_LEN);
+		goto tx_failed;
+	}
+
+	printf("\033[2K\033[GSaving file to the server...");
+	fflush(stdout);
+
 	// Check if the server successfully saved the file.
 	if (recv(sockfd, &resp, sizeof(struct svc_resp), 0) < 0) {
 		if (EAGAIN == errno || EWOULDBLOCK == errno) 
@@ -167,6 +186,7 @@ tx_failed:
 	if (NULL != rate) {
 		rate->transmitted = -1;
 	}
+	g_client_status.ltx = TX_FAILED;
 	return -1;
 }
 
@@ -204,9 +224,10 @@ client_inquiry_service(int sockfd, struct trans_stat *rate)
 			strncpy(svc_errinfo, "Out of memory.", ERRSTR_LEN);
 			goto tx_failed;
 		}
-	}
+	} else 
+		memset(g_items, 0x00, g_client_status.dcontent.item_num * sizeof(struct inven_item));
 
-	printf("\033[2KDownloading file inventory...");
+	printf("\033[2K\033[GDownloading file inventory...");
 	fflush(stdout);
 
 	if (recv_stream_nblock(sockfd, g_items, dlen, rate) < 0) {
@@ -221,5 +242,6 @@ client_inquiry_service(int sockfd, struct trans_stat *rate)
 tx_failed:
 	if (NULL != rate)
 		rate->transmitted = -1;
+	g_client_status.ltx = TX_FAILED;
 	return -1;
 }

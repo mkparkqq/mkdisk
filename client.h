@@ -46,6 +46,11 @@ enum CURSOR_DIRECTION {
 	CURSOR_DOWN = 1
 };
 
+enum LAST_TX {
+	TX_SUCCESSED,
+	TX_FAILED
+};
+
 struct window {
 	nnum row;
 	nnum column;
@@ -79,6 +84,8 @@ struct client_status {
 	struct asset asset;
 	struct dynamic_content dcontent;
 	enum SCREEN_ID curr_screen;
+	enum LAST_TX ltx;
+	struct sockaddr_in sa;
 };
 
 static inline int

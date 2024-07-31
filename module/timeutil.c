@@ -32,6 +32,6 @@ tstamp_msec(char *buf, int buflen)
 	gettimeofday(&tv, NULL);
 	tmp = localtime(&tv.tv_sec);
 	strftime(buf1, buflen, "%F %T", tmp);
-	snprintf(buf, buflen, "%s %d", buf1, tv.tv_usec);
+	snprintf(buf, buflen, "%s %ld", buf1, tv.tv_usec);
 }
 

@@ -142,7 +142,7 @@ destruct_hashmap(struct hashmap *map)
 }
 
 size_t 
-count_collision(struct hashmap *)
+count_collision(struct hashmap *map)
 {
 	return 0;
 }

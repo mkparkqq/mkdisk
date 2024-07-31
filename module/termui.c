@@ -302,6 +302,7 @@ void
 load_start_screen(void)
 {
 	g_client_status.swin.cursor = 0;
+	g_client_status.swin.sindex = 0;
 	g_client_status.dcontent.item_num = SVC_NUM - 1;
 	for (int i = 0; i < g_client_status.dcontent.item_num; i++)
 		strncpy(g_client_status.dcontent.opt_items[i], g_client_status.asset.services[i], WIN_COLUMN_MAX);

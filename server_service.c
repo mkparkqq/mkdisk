@@ -216,7 +216,7 @@ server_inquiry_service(int sockfd, size_t max_item, struct svc_req *req)
 
 	// Send data size.
 	set_resp_type(&resp, SVC_INQUIRY);
-	snprintf(resp.code, RESP_CODE_LEN, "%llu", dlen);
+	snprintf(resp.code, RESP_CODE_LEN, "%d", dlen);
 	if (send(sockfd, &resp, sizeof(struct svc_resp), 0) < 0) {
 		timestamp(MSEC, "[server_upload_service] [send]");
 		return -1;

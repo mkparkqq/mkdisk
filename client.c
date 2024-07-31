@@ -35,6 +35,31 @@ sig_exit(int signo)
 	terminate_client();
 }
 
+void
+init_serveraddr(const char *argv[])
+{
+	set_sockaddr_in(argv[1], atoi(argv[2]), &g_client_status.sa);
+}
+
+int
+connect_server()
+{
+	g_servsock = create_tcpsock();
+	if (connect(g_servsock, (struct sockaddr *)&g_client_status.sa, sizeof(g_client_status.sa)) < 0) {
+		perror("[connect]");
+		return -1;
+	}
+
+	g_client_status.ltx = TX_SUCCESSED;
+	return 0;
+}
+
+void
+disconnect()
+{
+	close(g_servsock);
+}
+
 static void 
 terminate_client()
 {
@@ -67,9 +92,8 @@ print_pbar(void* p)
 	double progress = 0.0;
 	char bar[WIN_COLUMN_MAX] = {'\0', };
 
-	printf("\033[?25l");
+	printf("\033[2K\033[G");
 	while (1) {
-		fflush(stdout);
 		if (stat->transmitted < 0)
 			return NULL;
 		if (0 == stat->total)
@@ -171,13 +195,19 @@ handle_enter_cmd()
 			refresh_screen();
 			g_client_status.curr_screen = SCREEN_UPLOAD;
 			upload_service();
+			load_start_screen();
+			refresh_screen();
+			g_client_status.curr_screen = SCREEN_START;
 		}
 		else if (SVC_DOWNLOAD == g_client_status.swin.cursor) {
-			if (fetch_file_inven() < 0)
+			if (fetch_file_inven() < 0) {
+				load_start_screen();
+				g_client_status.curr_screen = SCREEN_START;
 				set_status_msg(STAT_BAR_HIGHLIGHT, svc_errstr());
-			else
+			} else {
 				load_download_screen();
 				g_client_status.curr_screen = SCREEN_DOWNLOAD;
+			}
 			refresh_screen();
 		}
 		else if (SVC_RENAME == g_client_status.swin.cursor)
@@ -187,6 +217,11 @@ handle_enter_cmd()
 	} else if (SCREEN_DOWNLOAD == g_client_status.curr_screen) {
 		// TODO
 		// download_service(g_items[g_client_status.swin.curosr].fname);
+	}
+
+	if (TX_FAILED == g_client_status.ltx) {
+		disconnect();
+		connect_server();
 	}
 }
 
@@ -282,7 +317,6 @@ check_usage(int argc, const char *argv[])
 	return 0;
 }
 
-
 int
 main(int argc, const char* argv[]) 
 {
@@ -290,16 +324,9 @@ main(int argc, const char* argv[])
 		return 1;
 
 	// Connect to the server
-	g_servsock = create_tcpsock();
-	if ( g_servsock < 0) {
-		printf("\033[31m[socket]\033[0m\n");
-		return 1;
-	}
-
-	struct sockaddr_in sa;
-	set_sockaddr_in(argv[1], atoi(argv[2]), &sa);
-	if (connect(g_servsock, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
-		printf("Failed to connect\n");
+	init_serveraddr(argv);
+	if (connect_server() < 0) {
+		perror("[connect_server]");
 		return 1;
 	}
 
@@ -312,7 +339,6 @@ main(int argc, const char* argv[])
 
 	set_status_msg(STAT_BAR_HIGHLIGHT, "connected");
 	refresh_screen();
-
 
 	if (init_client_workers() < 0)
 		return 1;

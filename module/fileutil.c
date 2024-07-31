@@ -15,7 +15,7 @@ sprint_diskstat(const char *path, char *buf, size_t buflen)
 		snprintf(buf, buflen, "[diskstat] failed.");
 		return;
 	}
-	snprintf(buf, buflen, "Available inodes: %d\nAvailable blocks: %d\nFilesystem block size: %d",
+	snprintf(buf, buflen, "Available inodes: %ld\nAvailable blocks: %ld\nFilesystem block size: %ld",
 			ds.iavail, ds.bavail, ds.bsize);
 }
 

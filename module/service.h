@@ -8,6 +8,7 @@
 
 #define FILE_NAME_LEN	 		32
 #define IP_ADDRESS_LEN			INET_ADDRSTRLEN
+#define PORTNO_LEN				6
 #define TIMESTAMP_LEN			20
 #define TIMESTAMP_MS_LEN		24
 #define ERRSTR_LEN 				64
@@ -81,6 +82,7 @@ struct inven_item {
 char *svc_errstr(void);
 int client_upload_service(int, const char *, int64_t, enum ACCESS_LEVEL, struct trans_stat *);
 int client_inquiry_service(int, struct trans_stat *);
+int client_download_service(int, struct trans_stat *);
 
 /*
  * Just for the server.
