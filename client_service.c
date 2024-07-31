@@ -183,12 +183,13 @@ client_upload_service(int sockfd, const char *path,
 		goto request_refused;
 	}
 
-request_refused:
+
 tx_failed:
+	g_client_status.ltx = TX_FAILED;
+request_refused:
 	if (NULL != rate) {
 		rate->transmitted = -1;
 	}
-	g_client_status.ltx = TX_FAILED;
 	return -1;
 }
 
