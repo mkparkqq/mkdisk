@@ -245,8 +245,6 @@ server_download_service(int sockfd, struct svc_req *req)
 	int result = 0;
 
 	get_client_ipaddr(sockfd, clip, IP_ADDRESS_LEN);
-	snprintf(fpath, IP_ADDRESS_LEN + FILE_NAME_LEN, "%s/%s",
-			clip, req->fname);
 	fid = (int *) find(g_inven_cache.nametb, req->fname);
 
 	// Check if the file is deleted.
@@ -263,14 +261,17 @@ server_download_service(int sockfd, struct svc_req *req)
 		snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_ACCESS_DENIED);
 		goto refuse_svc;
 	}
-	// Check file exists.
-	if (access(fpath, F_OK) < 0) {
-		timestamp(MSEC, "[server_download_service] [client %d] [Miss (%s)]", fpath);
-		snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_NO_SUCH_FILE);
-		goto refuse_svc;
-	}
 
 	if (0 == pthread_rwlock_tryrdlock(&g_inven_cache.ilock[*fid])) {
+		snprintf(fpath, IP_ADDRESS_LEN + FILE_NAME_LEN, "%s/%s",
+				g_inven_cache.items[*fid].creator, req->fname);
+		// Check file exists.
+		if (access(fpath, F_OK) < 0) {
+			timestamp(MSEC, "[server_download_service] [client %d] [Miss (%s)]", sockfd, fpath);
+			snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_NO_SUCH_FILE);
+			pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
+			goto refuse_svc;
+		}
 		// Send OK response.
 		timestamp(MSEC, "[server_download_service] [client %d] OK",
 				sockfd);
