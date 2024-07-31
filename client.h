@@ -16,8 +16,9 @@
 #define OPT_ITEM_MAX				10000
 #define WIN_COLUMN_MAX				90
 #define WIN_ROW_MAX					30
-
 #define LOGO_ROW_NUM				4
+#define DOWNLOAD_HOME_LEN			10
+#define DOWNLOAD_HOME_STR			"Downloads"
 
 typedef unsigned int nnum;		// Natural number.
 

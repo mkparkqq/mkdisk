@@ -196,8 +196,10 @@ recv_stream_nblock(int sockfd, void *buf, int64_t dlen, struct trans_stat *rate)
 		cnt++;
 		ssize_t chunk = recv(sockfd, buf + rlen, dlen - rlen, 0);
 		if (EWOULDBLOCK == errno || EAGAIN == errno) {
-			if (++cnt == NONBLCOK_RETRY_LIMIT)
+			if (++cnt == NONBLCOK_RETRY_LIMIT) {
+				update_trans_stat(rate, -1);
 				return ERR_SOCKUTIL_RETRY_LIMIT;
+			}
 			continue;
 		} else if (0 == chunk){
 			update_trans_stat(rate, -1);

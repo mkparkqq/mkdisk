@@ -370,6 +370,8 @@ handle_request(int clsock)
 		return server_upload_service(clsock, &req);
 	else if (SVC_INQUIRY == atoi(req.type))
 		return server_inquiry_service(clsock, MAX_FILE_ITEMS, &req);
+	else if (SVC_DOWNLOAD == atoi(req.type))
+		return server_download_service(clsock, &req);
 
 	return 0;
 }

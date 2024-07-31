@@ -32,8 +32,11 @@ enum RESPONSE_CODE {
 	RESP_OUT_OF_MEMORY,
 	RESP_OUT_OF_DISK,
 	RESP_INVENTORY_FULL,
-	RESP_PAHNTOM_ITEM,
-	RESP_UNDEFINED_SVC
+	RESP_UNDEFINED_SVC,
+	RESP_NO_SUCH_FILE,
+	RESP_MODIFYING,
+	RESP_DELETED,
+	RESP_ACCESS_DENIED,
 	// TODO
 };
 
@@ -73,6 +76,7 @@ struct inven_item {
 	char last_modified[TIMESTAMP_LEN];
 	// enum ITEM_STAT status;
 	char status[2];
+	char flen[REQ_FLEN_LEN];
 };
 
 /*
@@ -82,16 +86,15 @@ struct inven_item {
 char *svc_errstr(void);
 int client_upload_service(int, const char *, int64_t, enum ACCESS_LEVEL, struct trans_stat *);
 int client_inquiry_service(int, struct trans_stat *);
-int client_download_service(int, struct trans_stat *);
+int client_download_service(int, struct inven_item *item, struct trans_stat *);
 
 /*
  * Just for the server.
  */
-// TODO
 int server_upload_service(int, struct svc_req *);
-int server_download_service(int);
+int server_download_service(int,struct svc_req *);
 int server_inquiry_service(int, size_t, struct svc_req *);
-int server_rename_service(int);
-int server_delete_service(int);
+int server_rename_service(int, struct svc_req *);
+int server_delete_service(int, struct svc_req *);
 
 #endif // _SERVICE_H_

@@ -9,6 +9,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 
 #define SERVER_RESP_TIMEOUT		5
 
@@ -157,7 +159,7 @@ client_upload_service(int sockfd, const char *path,
 		goto tx_failed;
 	}
 
-	printf("\033[2K\033[GSaving file to the server...");
+	printf("\033[2K\033[GServer processing...");
 	fflush(stdout);
 
 	// Check if the server successfully saved the file.
@@ -243,5 +245,99 @@ tx_failed:
 	if (NULL != rate)
 		rate->transmitted = -1;
 	g_client_status.ltx = TX_FAILED;
+	return -1;
+}
+
+
+int 
+client_download_service(int sockfd, struct inven_item *item, 
+		struct trans_stat *rate)
+{
+	struct svc_req req;
+	struct svc_resp resp;
+	int result = 0;
+	int64_t flen = 0;
+	int fd = -1;
+	void *map = NULL;
+	char downloadpath[FILE_NAME_LEN + DOWNLOAD_HOME_LEN];
+	
+	// Send download request.
+	snprintf(req.type, SVC_TYPE_LEN, "%d", SVC_DOWNLOAD);
+	strncpy(req.fname, item->fname, FILE_NAME_LEN);
+	result = send_stream(sockfd, &req, sizeof(struct svc_req));
+
+	if (set_socket_timeout(sockfd, SERVER_RESP_TIMEOUT) < 0) {
+		strncpy(svc_errinfo, "[set_socket_timeout]", ERRSTR_LEN);
+		goto tx_failed;
+	}
+
+	// Receive response
+	if (recv(sockfd, &resp, sizeof(struct svc_resp), 0) < 0) {
+		if (EAGAIN == errno || EWOULDBLOCK == errno) 
+			strncpy(svc_errinfo, "Server is busy.", ERRSTR_LEN);
+		else
+			strncpy(svc_errinfo, "[recv]", ERRSTR_LEN);
+		goto tx_failed;
+	}
+	
+	if (RESP_OK == atoi(resp.code)) {
+		flen = strtoll(item->flen, NULL, 10);
+
+		if (set_socket_timeout(sockfd, 0) < 0) {
+			strncpy(svc_errinfo, "[set_socket_timeout]", ERRSTR_LEN);
+			goto tx_failed;
+		}
+
+		// Create file size flen.
+		snprintf(downloadpath, DOWNLOAD_HOME_LEN + FILE_NAME_LEN + 1, 
+				"%s/%s", DOWNLOAD_HOME_STR, item->fname);
+		fd = open(downloadpath, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+		if (fd < 0) {
+			strncpy(svc_errinfo, "Failed to create a new file(1).", ERRSTR_LEN);
+			goto tx_failed;
+		}
+		if (ftruncate(fd, flen) < 0) {
+			strncpy(svc_errinfo, "Failed to create a new file(2).", ERRSTR_LEN);
+			goto tx_failed;
+		}
+		// Map the file to the buffer.
+		map = mmap(NULL, flen, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+		if (MAP_FAILED == map) {
+			strncpy(svc_errinfo, "Failed to create a new file(3).", ERRSTR_LEN);
+			goto tx_failed;
+		}
+
+		// Receive the file data.
+		result = recv_stream_nblock(sockfd, map, flen, rate);
+		if (result < 0) {
+			strncpy(svc_errinfo, sockutil_errstr(result), ERRSTR_LEN);
+			goto tx_failed;
+		}
+
+		if (munmap(map, flen) < 0) {
+			strncpy(svc_errinfo, "Failed to create a new file(4).", ERRSTR_LEN);
+			goto tx_failed;
+		}
+
+		return 0;
+	} else if (RESP_NO_SUCH_FILE == atoi(resp.code)) {
+			strncpy(svc_errinfo, "The file could not be found.", ERRSTR_LEN);
+			goto svc_refused;
+	} else if (RESP_ACCESS_DENIED == atoi(resp.code)) {
+			strncpy(svc_errinfo, "Access denied.", ERRSTR_LEN);
+			goto svc_refused;
+	}
+
+tx_failed:
+	g_client_status.ltx = TX_FAILED;
+svc_refused:
+	if (NULL != map) {
+		msync(map, flen, MS_INVALIDATE);
+		munmap(map, flen);
+	}
+	if (-1 != fd)
+		close(fd);
+	if (NULL != rate)
+		rate->transmitted = -1;
 	return -1;
 }

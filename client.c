@@ -107,7 +107,6 @@ print_pbar(void* p)
 		if (stat->total == stat->transmitted)
 			break;
 	}
-	// progress = (double) stat->transmitted / (double) stat->total * 100.0F;
 	flush_screen();
 	// refresh_screen();
 	return NULL;
@@ -154,9 +153,6 @@ upload_service()
 
 	pthread_join(pbar_worker, NULL);
 
-	g_client_status.curr_screen = SCREEN_START;
-	load_start_screen();
-
 	if (result < 0) {
 		set_status_msg(STAT_BAR_HIGHLIGHT, svc_errstr());
 		refresh_screen();
@@ -165,6 +161,20 @@ upload_service()
 
 	set_status_msg(STAT_BAR_HIGHLIGHT, "File transfer successful.");
 	refresh_screen();
+}
+
+static int
+download_service(struct inven_item *item)
+{
+	struct trans_stat rate = { 0, 0 };
+	pthread_t pbar_worker = 0;
+	pthread_create(&pbar_worker, NULL, print_pbar, (void *)&rate);
+
+	int result = client_download_service(g_servsock, item, &rate);
+
+	pthread_join(pbar_worker, NULL);
+
+	return result;
 }
 
 static int
@@ -196,8 +206,8 @@ handle_enter_cmd()
 			g_client_status.curr_screen = SCREEN_UPLOAD;
 			upload_service();
 			load_start_screen();
-			refresh_screen();
 			g_client_status.curr_screen = SCREEN_START;
+			refresh_screen();
 		}
 		else if (SVC_DOWNLOAD == g_client_status.swin.cursor) {
 			if (fetch_file_inven() < 0) {
@@ -215,8 +225,14 @@ handle_enter_cmd()
 		else if (SVC_DELETE == g_client_status.swin.cursor)
 			load_delete_screen();
 	} else if (SCREEN_DOWNLOAD == g_client_status.curr_screen) {
-		// TODO
-		// download_service(g_items[g_client_status.swin.curosr].fname);
+		if (download_service(&g_items[g_client_status.swin.cursor]) < 0) {
+			set_status_msg(STAT_BAR_HIGHLIGHT, svc_errstr());
+		} else {
+			set_status_msg(STAT_BAR_HIGHLIGHT, "File transfer successful.");
+		}
+		load_start_screen();
+		g_client_status.curr_screen = SCREEN_START;
+		refresh_screen();
 	}
 
 	if (TX_FAILED == g_client_status.ltx) {
@@ -329,6 +345,8 @@ main(int argc, const char* argv[])
 		perror("[connect_server]");
 		return 1;
 	}
+
+	create_directory_if_not_exists(DOWNLOAD_HOME_STR);
 
 	if (init_termui() < 0)
 		return 1;

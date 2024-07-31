@@ -128,6 +128,7 @@ server_upload_service(int clsock, struct svc_req *req)
 	strncpy(g_inven_cache.items[*fid].alv, req->alv, sizeof(g_inven_cache.items[*fid].alv));
 	strncpy(g_inven_cache.items[*fid].last_modified, ts, sizeof(g_inven_cache.items[*fid].last_modified));
 	snprintf(g_inven_cache.items[*fid].status, sizeof(g_inven_cache.items[*fid].status), "%d", ITEM_STAT_AVAILABLE);
+	snprintf(g_inven_cache.items[*fid].flen, sizeof(g_inven_cache.items[*fid].flen), "%s", req->flen);
 	
 	// Receive file data.
 	ssize_t rlen = 0;
@@ -192,11 +193,116 @@ refuse_svc:
 	return -1;
 }
 
+// client_service에도 존재. -> 공통 모듈로 분리
+static int
+send_file(int sockfd, const char *path, int64_t flen, struct trans_stat *rate)
+{
+	int64_t dlen = 0;// Size of data to send in bytes.
+	int64_t slen = 0;// Size of data sent in bytes.
+
+	void *data = malloc(flen);
+	if (NULL == data) {
+		timestamp(MSEC, "[send_file] [malloc]");
+		 return -1;
+	}
+
+	dlen = read_file(path, data, flen);
+	if (dlen < 0) {
+		timestamp(MSEC, "[send_file] [read_file]");
+		goto futil_err;
+	}
+
+	slen = send_stream_nblock(sockfd, data, flen, rate);
+	if (slen < 0) {
+		timestamp(MSEC, "[send_file] %s", sockutil_errstr(slen));
+		goto sockutil_err;
+	}
+
+	free(data);
+
+	return 0;
+
+futil_err:
+	free(data);
+	return -1;
+
+sockutil_err:
+	free(data);
+	return -1;
+}
 
 int 
-server_download_service(int sockfd)
+server_download_service(int sockfd, struct svc_req *req)
 {
+	timestamp(MSEC, "[server_download_service] [client %d] [%s]",
+			sockfd, req->fname);
+	struct svc_resp resp;
+	char fpath[IP_ADDRESS_LEN + FILE_NAME_LEN];
+	int64_t flen = 0;
+	char clip[IP_ADDRESS_LEN];
+	int *fid = NULL;
+	int alv = -1;
+	int result = 0;
 
+	get_client_ipaddr(sockfd, clip, IP_ADDRESS_LEN);
+	snprintf(fpath, IP_ADDRESS_LEN + FILE_NAME_LEN, "%s/%s",
+			clip, req->fname);
+	fid = (int *) find(g_inven_cache.nametb, req->fname);
+
+	// Check if the file is deleted.
+	if (NULL == fid) {
+		snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_DELETED);
+		goto refuse_svc;
+	}
+
+	alv = atoi(g_inven_cache.items[*fid].alv);
+	flen = strtoll(g_inven_cache.items[*fid].flen, NULL, 10);
+
+	// Check access level.
+	if ((alv == PRIVATE_ACCESS) && (strcmp(clip, g_inven_cache.items[*fid].creator))) {
+		snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_ACCESS_DENIED);
+		goto refuse_svc;
+	}
+	// Check file exists.
+	if (access(fpath, F_OK) < 0) {
+		timestamp(MSEC, "[server_download_service] [client %d] [Miss (%s)]", fpath);
+		snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_NO_SUCH_FILE);
+		goto refuse_svc;
+	}
+
+	if (0 == pthread_rwlock_tryrdlock(&g_inven_cache.ilock[*fid])) {
+		// Send OK response.
+		timestamp(MSEC, "[server_download_service] [client %d] OK",
+				sockfd);
+		snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_OK);
+		result = send_stream(sockfd, &resp, sizeof(struct svc_resp));
+		if(result < 0) {
+			timestamp(MSEC, "%s", sockutil_errstr(result));
+			pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
+			return -1;
+		}
+		// Send the file.
+		if (send_file(sockfd, fpath, flen, NULL) < 0) {
+			timestamp(MSEC, "%s", sockutil_errstr(result));
+			pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
+			timestamp(MSEC, "[server_download_service] [client %d] Download successed.",
+				sockfd);
+			return -1;
+		}
+		timestamp(MSEC, "[server_download_service] [client %d] File sended.", sockfd);
+		pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
+		return 0;
+	} else {
+		snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_MODIFYING);
+		goto refuse_svc;
+	}
+
+refuse_svc:
+	if(send_stream(sockfd, &resp, sizeof(struct svc_resp)) < 0) {
+		timestamp(MSEC, "%s", sockutil_errstr(result));
+		return -1;
+	}
+	return 0;
 }
 
 int 
@@ -205,14 +311,6 @@ server_inquiry_service(int sockfd, size_t max_item, struct svc_req *req)
 	struct svc_resp resp;
 	int result = 0;
 	int dlen = max_item * sizeof(struct inven_item);
-
-	/*
-	// Receive svc_req.
-	if (recv(sockfd, req, sizeof(struct svc_req), 0) < 0) {
-		timestamp(MSEC, "[%s] [handle_request] [recv] client %d", sockfd);
-		return -1;
-	}
-	*/
 
 	// Send data size.
 	set_resp_type(&resp, SVC_INQUIRY);
@@ -233,13 +331,13 @@ server_inquiry_service(int sockfd, size_t max_item, struct svc_req *req)
 }
 
 int 
-server_rename_service(int sockfd)
+server_rename_service(int sockfd, struct svc_req *req)
 {
 	;
 }
 
 int 
-server_delete_service(int sockfd)
+server_delete_service(int sockfd, struct svc_req *req)
 {
 	;
 }

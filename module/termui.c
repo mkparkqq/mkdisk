@@ -147,7 +147,6 @@ print_usage()
 static void
 print_opt_items()
 {
-	// TODO
 	nnum opt_rows = g_client_status.win.row - LOGO_ROW_NUM - STAT_BAR_ROW_NUM - 1;
 	int s = g_client_status.swin.sindex;
 	for (int i = 0; i < opt_rows; i++) {
@@ -338,12 +337,17 @@ load_download_screen(void)
 				"%-*s %-*s %-*s %-*s",
 				IP_ADDRESS_LEN,
 				g_items[i].creator,
-				FILE_NAME_LEN,
+				FILE_NAME_LEN - 1,
 				g_items[i].fname,
+				REQ_FLEN_LEN,
+				g_items[i].flen,
 				7,
-				alv,
+				alv
+				/*
 				TIMESTAMP_LEN,
-				g_items[i].last_modified);
+				g_items[i].last_modified
+				*/
+				);
 		idx++;
 	}
 	g_client_status.dcontent.item_num = idx;
