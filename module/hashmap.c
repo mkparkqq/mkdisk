@@ -149,7 +149,7 @@ count_collision(struct hashmap *map)
 
 #ifdef _UNIT_TEST_
 
-#include "mk_ctest.h"
+#include "../test/mk_ctest.h"
 #include "list.c"
 
 #define TEST_BUCKET_NUM 		30

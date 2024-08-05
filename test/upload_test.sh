@@ -3,7 +3,7 @@
 # usage: ./load_test.sh [file path] [iteration]"
 
 iter=20
-target="data500mb"
+target="data/data13mb.jpg"
 
 if [ $# -eq 1 ]; then
 	target="$1"

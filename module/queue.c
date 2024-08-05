@@ -79,7 +79,7 @@ destruct_queue(struct queue *q)
 }
 
 #ifdef _UNIT_TEST_
-#include "mk_ctest.h"
+#include "../test/mk_ctest.h"
 #include <stdlib.h>
 
 /*
