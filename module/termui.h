@@ -14,6 +14,7 @@ void move_cursor(enum CURSOR_DIRECTION d);
 int get_winsize(int fd);
 void refresh_screen();
 void set_status_msg(enum STAT_BAR ch, const char *format, ...);
+void init_scroll_window_cursor();
 
 void load_start_screen(void);
 void load_upload_screen(void);

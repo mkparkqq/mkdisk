@@ -253,6 +253,7 @@ cmd_worker(void *p)
 				if (SCREEN_DOWNLOAD == g_client_status.curr_screen) {
 					fetch_file_inven();
 					load_download_screen();
+					init_scroll_window_cursor();
 					refresh_screen();
 				}
 				break;

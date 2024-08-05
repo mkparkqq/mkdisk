@@ -88,7 +88,7 @@ init_static_contents()
     strncpy(g_client_status.asset.services[3], "Delete file", WIN_COLUMN_MAX);
 }
 
-static void
+void
 init_scroll_window_cursor()
 {
 	g_client_status.swin.sindex = 0;
