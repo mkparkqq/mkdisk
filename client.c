@@ -35,13 +35,13 @@ sig_exit(int signo)
 	terminate_client();
 }
 
-void
+static void
 init_serveraddr(const char *argv[])
 {
 	set_sockaddr_in(argv[1], atoi(argv[2]), &g_client_status.sa);
 }
 
-int
+static int
 connect_server()
 {
 	g_servsock = create_tcpsock();
@@ -54,7 +54,7 @@ connect_server()
 	return 0;
 }
 
-void
+static void
 disconnect()
 {
 	close(g_servsock);
@@ -309,8 +309,10 @@ check_usage(int argc, const char *argv[])
 int
 main(int argc, const char* argv[]) 
 {
+#ifndef _TEST_
 	if (check_usage(argc, argv) < 0)
 		return 1;
+#endif // _TEST_
 
 	// Connect to the server
 	init_serveraddr(argv);
@@ -318,6 +320,19 @@ main(int argc, const char* argv[])
 		perror("[connect_server]");
 		return 1;
 	}
+
+#ifdef _TEST_
+/*
+ * usage
+ * ./send_service_test.out [server ip] [server port] [file path] [ACCESS LEVEL]
+ */
+#define TEST_DOWNLOAD_HOME_STR 			".downloads_test"
+	create_directory_if_not_exists(TEST_DOWNLOAD_HOME_STR);
+
+	if (client_upload_service(g_servsock, argv[3], sizeof_file(argv[3]), atoi(argv[4]), NULL) < 0)
+		return -1;
+	return 0;
+#endif // _TEST_
 
 	create_directory_if_not_exists(DOWNLOAD_HOME_STR);
 
