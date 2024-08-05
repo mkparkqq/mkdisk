@@ -279,9 +279,7 @@ get_winsize(int fd)
 void 
 refresh_screen()
 {
-	pthread_mutex_lock(&g_client_workers[WORKER_ID_SCREEN].mutex);
-	pthread_cond_signal(&g_client_workers[WORKER_ID_SCREEN].cond);
-	pthread_mutex_unlock(&g_client_workers[WORKER_ID_SCREEN].mutex);
+	flush_screen();
 }
 
 void 
@@ -302,7 +300,7 @@ load_start_screen(void)
 {
 	g_client_status.swin.cursor = 0;
 	g_client_status.swin.sindex = 0;
-	g_client_status.dcontent.item_num = SVC_NUM - 1;
+	g_client_status.dcontent.item_num = 2;
 	for (int i = 0; i < g_client_status.dcontent.item_num; i++)
 		strncpy(g_client_status.dcontent.opt_items[i], g_client_status.asset.services[i], WIN_COLUMN_MAX);
 }

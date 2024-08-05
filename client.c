@@ -67,23 +67,12 @@ terminate_client()
 	g_quit = 1;
 	set_status_msg(STAT_BAR_HIGHLIGHT, "Goodbye");
 	refresh_screen();
+	/*
 	usleep(1000 * 100);			// g_client_status.dcontent.opt_item이 free되기 전에 screen_worker가 화면을 업데이트하도록 기다림.
+	*/
 	destruct_termui();
-	printf("\n");
 }
 
-static void*
-screen_worker(void *p)
-{
-	while (!g_quit) {
-		pthread_mutex_lock(&g_client_workers[WORKER_ID_SCREEN].mutex);
-		pthread_cond_wait(&g_client_workers[WORKER_ID_SCREEN].cond, &g_client_workers[WORKER_ID_SCREEN].mutex);
-		flush_screen();
-		pthread_mutex_unlock(&g_client_workers[WORKER_ID_SCREEN].mutex);
-	}
-
-	return NULL;
-}
 
 static void*
 print_pbar(void* p) 
@@ -108,7 +97,7 @@ print_pbar(void* p)
 			break;
 	}
 	flush_screen();
-	// refresh_screen();
+
 	return NULL;
 }
 
@@ -261,9 +250,12 @@ cmd_worker(void *p)
 				handle_enter_cmd();
 				break;
 			case 'u':
-				// fetch_file_inven();
-				refresh_screen();
-				return NULL;
+				if (SCREEN_DOWNLOAD == g_client_status.curr_screen) {
+					fetch_file_inven();
+					load_download_screen();
+					refresh_screen();
+				}
+				break;
 			case 'q':
 				terminate_client();
 				return NULL;
@@ -291,25 +283,6 @@ init_sighandler()
 		set_status_msg(STAT_BAR_NORMAL, "[Error] [signal] SIGINT");
 	refresh_screen();
 	*/
-}
-
-static int
-init_client_workers()
-{
-	for (int i = 0; i < CLIENT_WORKER_NUM; i++) {
-		pthread_mutex_init(&g_client_workers[i].mutex, NULL);
-		pthread_cond_init(&g_client_workers[i].cond, NULL);
-	}
-
-	int result = 0;
-	result |= pthread_create(&g_client_workers[WORKER_ID_SCREEN].wid, NULL, screen_worker, NULL);
-	result |= pthread_create(&g_client_workers[WORKER_ID_CMD].wid, NULL, cmd_worker, NULL);
-	if (0 != result) {
-		printf("[init_client_workers]");
-		return -1;
-	}
-	
-	flush_screen();
 }
 
 /*
@@ -358,16 +331,7 @@ main(int argc, const char* argv[])
 	set_status_msg(STAT_BAR_HIGHLIGHT, "connected");
 	refresh_screen();
 
-	if (init_client_workers() < 0)
-		return 1;
-
-	for (int i = 0; i < CLIENT_WORKER_NUM; i++)
-		pthread_join(g_client_workers[i].wid, NULL);
-
-	for (int i = 0; i < CLIENT_WORKER_NUM; i++) {
-		pthread_mutex_destroy(&g_client_workers[i].mutex);
-		pthread_cond_destroy(&g_client_workers[i].cond);
-	}
+	cmd_worker(NULL);
 
 	return 0;
 }
