@@ -5,8 +5,8 @@ CC = gcc
 CFLAGS = -g -lpthread -pthread -D_DEBUG_
 
 # 타겟 실행 파일
-CLIENT = client
-SERVER = server
+CLIENT = client.out
+SERVER = server.out
 
 # 소스 파일
 CLIENT_SRCS = client.c module/termui.c \
