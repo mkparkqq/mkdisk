@@ -32,6 +32,7 @@ static int g_refused_count = 0;
 static int listener_fd;
 static struct sockaddr_in serv_addr;
 static int g_epollfd;
+static int g_w2mpipe[2];
 
 static void *session_worker_routine(void *);
 static int handle_request(int);
@@ -121,13 +122,17 @@ init_session_workers(size_t wpool_size)
 		return -1;
 	}
 
+	if (pipe(g_w2mpipe) < 0)
+		goto create_worker_failed;
+
 	for (int i = 0; i < wpool_size; i++) {
 		g_sworker_pool[i].wid = i;
 		if (pipe(g_sworker_pool[i].pipefd) < 0)
 			goto create_worker_failed;
+		/*
 		if (pipe(g_sworker_pool[i].dpipefd) < 0)
 			goto create_worker_failed;
-		/*
+
 		if (fcntl(g_sworker_pool[i].pipefd[0], F_SETFL, O_NONBLOCK) < 0)
 			goto create_worker_failed;
 		if (fcntl(g_sworker_pool[i].pipefd[1], F_SETFL, O_NONBLOCK) < 0)
@@ -315,40 +320,26 @@ session_worker_routine(void *p)
 	struct worker *winfo = (struct worker *)p;
 	int readpipe = winfo->pipefd[0];
 	int wrpipe = winfo->pipefd[1];
-	fd_set rfds;
 	int clsock = 0;
 	int result = 0;
 
 	while(g_running) {
-		FD_ZERO(&rfds);
-		FD_SET(readpipe, &rfds);
-		result = select(readpipe + 1, &rfds, NULL, NULL, NULL);
-		// Read a client sockfd from main thread.
-		if(result > 0 && FD_ISSET(readpipe, &rfds)) {
-			// timestamp(MSEC, "[pipe %d] detected", readpipe);
-			ssize_t nbytes = read(readpipe, &clsock, sizeof(int));
-			// Pipe closed.
-			if (nbytes == 0)
-				break;
-			else if (nbytes < 0) {
-				perror("[session_worker_routine] [read]");
-				continue;
-			} else { 
-				timestamp(MSEC, "[session_worker_routine] [worker %d] [pipe %d] [client %d]",
-						winfo->wid, winfo->pipefd[0], clsock);
-				handle_request(clsock);
-				/*
-				 * 메인 스레드에게 자신의 작업이 종료되었음을 알리는 방법.
-				 * 1. worker가 직접 g_sworkerid_queue에 자신의 wid를 삽입한다.
-				 * 		g_workerid_queue에서 한 번, epoll에 다시 sockfd를 등록하는 과정에서 한 번 경합 발생
-				 * 2. worker가 읽기와 쓰기 전용 파이프를 두 개 가진다
-				 * 		worker 한 개당 4개의 소켓을 가진다. 경합은 발생하지 않는다.
-				 */
-				struct task_cmpl_msg msg;
-				msg.wid = winfo->wid;
-				msg.clsock = clsock;
-				write(winfo->dpipefd[1], &msg, sizeof(struct task_cmpl_msg));
-			}
+		// timestamp(MSEC, "[pipe %d] detected", readpipe);
+		ssize_t nbytes = read(readpipe, &clsock, sizeof(int));
+		// Pipe closed.
+		if (nbytes == 0)
+			break;
+		else if (nbytes < 0) {
+			perror("[session_worker_routine] [read]");
+			continue;
+		} else { 
+			timestamp(MSEC, "[session_worker_routine] [worker %d] [pipe %d] [client %d]",
+					winfo->wid, winfo->pipefd[0], clsock);
+			handle_request(clsock);
+			struct task_cmpl_msg msg;
+			msg.wid = winfo->wid;
+			msg.clsock = clsock;
+			write(g_w2mpipe[1], &msg, sizeof(struct task_cmpl_msg));
 		}
 	}
 	return NULL;
@@ -450,9 +441,7 @@ handle_events()
 static void
 register_worker_events(int wpool_size)
 {
-	for (int i = 0; i < wpool_size; i++) {
-		register_event(g_sworker_pool[i].dpipefd[0], EVENT_WORKER_MSG, EPOLLIN);
-	}
+	register_event(g_w2mpipe[0], EVENT_WORKER_MSG, EPOLLIN);
 }
 
 int
