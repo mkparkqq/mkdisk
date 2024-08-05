@@ -2,9 +2,9 @@
 
 # Source - exec
 declare -A files
-files=( ["queue.c"]="queue.unittest" \
-	["list.c"]="list.unittest"\
-	["hashmap.c"]="hashmap.unittest"\
+files=( ["../module/queue.c"]="queue.unittest" \
+	["../module/list.c"]="list.unittest"\
+	["../module/hashmap.c"]="hashmap.unittest"\
 )
 
 COLUMN=48
@@ -25,4 +25,4 @@ done
 
 echo
 
-# rm *.unittest
+rm *.unittest

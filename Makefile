@@ -1,14 +1,11 @@
 # Makefile
 
-# 컴파일러와 플래그
 CC = gcc
-CFLAGS = -g -lpthread -pthread -D_DEBUG_ -D_TEST_
+CFLAGS = -g -lpthread -pthread -D_DEBUG_
 
-# 타겟 실행 파일
 CLIENT = client.out
 SERVER = server.out
 
-# 소스 파일
 CLIENT_SRCS = client.c module/termui.c \
 			  client_service.c \
 			  module/sockutil.c module/fileutil.c module/timeutil.c \
