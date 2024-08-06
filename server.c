@@ -245,7 +245,10 @@ create_new_session(struct event *event)
 
 	g_session_count++;
 
-	timestamp(MSEC, "\033[32mClient[%d] %s:%d connected(%d)\033[0m", clsock, inet_ntoa(claddr.sin_addr), ntohs(claddr.sin_port), g_session_count);
+	timestamp(MSEC, "[new connection (%d/%d)] Client (%d) %s:%d", 
+			g_session_count, MAX_SESSIONS,
+			clsock, inet_ntoa(claddr.sin_addr), 
+			ntohs(claddr.sin_port));
 
 	return 0;
 }
@@ -286,19 +289,13 @@ reap_worker(struct event *event)
 	read(event->sockfd, &msg, sizeof(struct task_cmpl_msg));
 
 	reactivate_oneshot_event(g_sworker_pool[msg.wid].event);
-	/*
-	struct epoll_event ev;
-	ev.events = EPOLLIN | EPOLLRDHUP | EPOLLONESHOT;
-	ev.data.ptr = g_sworker_pool[msg.wid].event;
-	if (epoll_ctl(g_epollfd, EPOLL_CTL_MOD, msg.clsock, &ev) < 0)
-		perror("[reap_worker] [epoll_ctl]");
-	*/
+
 	if (enqueue(g_sworkerid_queue, &msg.wid) < 0) {
-		timestamp(MSEC, "[reap_worker] [enqueue]");
+		timestamp(MSEC, "[reap_worker] [enqueue] overflow");
 		return -1;
 	}
 
-	timestamp(MSEC, "[reap_worker] [worker %d] [client %d]", msg.wid, msg.clsock);
+	timestamp(MSEC, "[reap_worker] [worker (%d)] [client (%d)]", msg.wid, msg.clsock);
 
 	return 0;
 }
@@ -307,8 +304,8 @@ static int
 destruct_session(struct event *event)
 {
 	g_session_count--;
-	timestamp(MSEC, "Client[%d] disconnected(%d)", 
-			event->sockfd, g_session_count);
+	timestamp(MSEC, "[disconnected (%d/%d)] [client (%d)]", 
+			g_session_count, MAX_SESSIONS, event->sockfd);
 	close(event->sockfd);
 	remove_event(event);
 	return 0;
@@ -324,7 +321,6 @@ session_worker_routine(void *p)
 	int result = 0;
 
 	while(g_running) {
-		// timestamp(MSEC, "[pipe %d] detected", readpipe);
 		ssize_t nbytes = read(readpipe, &clsock, sizeof(int));
 		// Pipe closed.
 		if (nbytes == 0)
@@ -333,7 +329,7 @@ session_worker_routine(void *p)
 			perror("[session_worker_routine] [read]");
 			continue;
 		} else { 
-			timestamp(MSEC, "[session_worker_routine] [worker %d] [pipe %d] [client %d]",
+			timestamp(MSEC, "[session_worker_routine] [worker (%d)] [pipe (%d)] [client (%d)]",
 					winfo->wid, winfo->pipefd[0], clsock);
 			handle_request(clsock);
 			struct task_cmpl_msg msg;
@@ -353,7 +349,7 @@ handle_request(int clsock)
 
 	// Receive svc_req
 	if (recv(clsock, &req, sizeof(struct svc_req), 0) < 0) {
-		timestamp(MSEC, "[%s] [handle_request] [recv] client %d", clsock);
+		timestamp(MSEC, "[handle_request] [recv] [client (%d)] failed", clsock);
 		return -1;
 	}
 

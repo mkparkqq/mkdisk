@@ -14,13 +14,13 @@ fi
 
 
 for i in $(seq 1 $iter); do
-	printf "upload $target-%-3s\t"  "$i"
     mv "$target" "$target-$i" && 
-		./client.test 0 23455 "$target-$i" 0 > /dev/null
+		./client.test 0 23455 "$target-$i" $(($i % 2)) > /dev/null
 	if [ $? -eq 0 ]; then
-		printf "\033[32m%6s\033[0m\n" "[PASS]"
+		printf "[upload] $target-%-3s\t\033[32m%6s\033[0m\n" "$i" "[PASS]"
 	else
-		printf "\033[31m%6s\033[0m\n" "[FAIL]"
+		printf "[upload] $target-%-3s\t\033[31m%6s\033[0m\n" "$i" "[FAIL]"
 	fi
     mv "$target-$i" "$target"
 done
+

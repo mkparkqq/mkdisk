@@ -86,30 +86,32 @@ server_upload_service(int clsock, struct svc_req *req)
 	int *fid = (int *)malloc(sizeof(int));
 	*fid = -1;
 
-	timestamp(MSEC, "[client %d request] [%s %uB (%d)]", clsock, req->fname, flen, alv);
+	timestamp(MSEC, "[request] [client (%d)] %s %uB (%d)", 
+			clsock, req->fname, flen, alv);
 
 	// 서버 메모리 확인
 	void *buf = NULL;
 	buf = malloc(flen);
 	if (NULL == buf) {
-		timestamp(MSEC, "[server_upload_service] [malloc]");
+		timestamp(MSEC, "[server_upload_service] [refuse] [malloc]");
 		set_resp_code(&resp, RESP_OUT_OF_MEMORY);
 		goto refuse_svc;
 	}
 	// 파일 이름 사용 가능하면 일단 nametb 선점
 	if (set(g_inven_cache.nametb, req->fname, (void *)fid, 0) < 0) {
-		timestamp(MSEC, "[server_upload_service] file already exists(%s)", req->fname);
+		timestamp(MSEC, "[server_upload_service] [refuse] file already exists(%s)", req->fname);
 		set_resp_code(&resp, RESP_DUPLICATED);
 		goto refuse_svc;
 	}
 	// g_inven_cache.items에 빈 공간이 있는지 확인
 	if (dequeue(g_inven_cache.fidq, fid) < 0) {
+		timestamp(MSEC, "[server_upload_service] [refuse] fidq");
 		rm_item(g_inven_cache.nametb, req->fname); // rollback
 		set_resp_code(&resp, RESP_INVENTORY_FULL);
 		goto refuse_svc;
 	}
 	set(g_inven_cache.nametb, req->fname, (void *)fid, 1);
-	// TODO 서버 용량 검사
+	// TODO 서버 disk  용량 검사
 
 	// Send response
 	snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_OK);
@@ -151,7 +153,7 @@ server_upload_service(int clsock, struct svc_req *req)
 	// Transmission failed. Rollback g_inven_cache.
 	else {
 		rollback_inven_cache(fid, req);
-		timestamp(MSEC, "Upload incomplete(%d). (%ldB/%ldB)", cnt, rlen, flen);
+		timestamp(MSEC, "[server_upload_service] paritally transmitted (%s)", req->fname);
 		free(buf);
 		return -1;
 	}
@@ -234,7 +236,7 @@ sockutil_err:
 int 
 server_download_service(int sockfd, struct svc_req *req)
 {
-	timestamp(MSEC, "[server_download_service] [client %d] [%s]",
+	timestamp(MSEC, "[server_download_service] [client (%d)] [%s]",
 			sockfd, req->fname);
 	struct svc_resp resp;
 	char fpath[IP_ADDRESS_LEN + FILE_NAME_LEN];
@@ -267,13 +269,13 @@ server_download_service(int sockfd, struct svc_req *req)
 				g_inven_cache.items[*fid].creator, req->fname);
 		// Check file exists.
 		if (access(fpath, F_OK) < 0) {
-			timestamp(MSEC, "[server_download_service] [client %d] [Miss (%s)]", sockfd, fpath);
+			timestamp(MSEC, "[server_download_service] [client (%d)] [Miss (%s)]", sockfd, fpath);
 			snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_NO_SUCH_FILE);
 			pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
 			goto refuse_svc;
 		}
 		// Send OK response.
-		timestamp(MSEC, "[server_download_service] [client %d] OK",
+		timestamp(MSEC, "[server_download_service] [client (%d)] OK",
 				sockfd);
 		snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_OK);
 		result = send_stream(sockfd, &resp, sizeof(struct svc_resp));
@@ -286,11 +288,11 @@ server_download_service(int sockfd, struct svc_req *req)
 		if (send_file(sockfd, fpath, flen, NULL) < 0) {
 			timestamp(MSEC, "%s", sockutil_errstr(result));
 			pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
-			timestamp(MSEC, "[server_download_service] [client %d] Download successed.",
+			timestamp(MSEC, "[server_download_service] [client (%d)] Download successed.",
 				sockfd);
 			return -1;
 		}
-		timestamp(MSEC, "[server_download_service] [client %d] File sended.", sockfd);
+		timestamp(MSEC, "[server_download_service] [client (%d)] File sended.", sockfd);
 		pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
 		return 0;
 	} else {

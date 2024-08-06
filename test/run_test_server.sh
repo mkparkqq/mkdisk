@@ -1,2 +1,1 @@
-cd ../ && make
-nohup stdbuf -oL ../server.out > ./server_test.log 2>&1 &'
+nohup stdbuf -oL ../server.out > ./server_test.log 2>&1 &
