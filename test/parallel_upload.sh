@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ $# -ne 3 ]; then
-	echo "usage: ./parallel_upload_test.sh [file to upload] [nexe] [count]"
+	echo "usage: ./parallel_upload.sh [file to upload] [nexe] [count]"
 	exit 1
 fi
 
@@ -18,7 +18,7 @@ for i in $(seq 1 $nexe); do
 done
 
 for i in $(seq 1 $nexe); do
-	./upload_test.sh "$target-p$i" "$count" &
+	./upload.sh "$target-p$i" "$count" &
 done
 
 wait
