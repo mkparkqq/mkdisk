@@ -104,39 +104,24 @@ send_stream_nblock(int sockfd, void *data, int64_t dlen, struct trans_stat *rate
 	}
 
 	struct timeval timeout;
+	int64_t chunk = 0;
 	int64_t slen = 0;
 	int sendcnt = 0;
 	int retrycnt = 0;
 	fd_set writefds;
 
 	while (slen < dlen) {
-		FD_ZERO(&writefds);
-		FD_SET(sockfd, &writefds);
-		timeout.tv_sec = 1;
-		timeout.tv_usec = 0;
-
-		int result = select(sockfd + 1, NULL, &writefds, NULL, &timeout);
-
-		if (result > 0) {
-			if (FD_ISSET(sockfd, &writefds)) {
-				++sendcnt;
-				int64_t chunk = send(sockfd, data + slen, dlen - slen, MSG_DONTWAIT);
-				if (chunk < 0) {
-					update_trans_stat(rate, -1);
-					return ERR_SOCKUTIL_SEND_FAILED;
-				}
-				// Successfully sent.
-				slen += chunk;
-				update_trans_stat(rate, slen);
-				retrycnt = 0;
-			}
-		} else if (0 == result){
-			if (NONBLCOK_RETRY_LIMIT == ++retrycnt) {
-				update_trans_stat(rate, -1);
-				return ERR_SOCKUTIL_RETRY_LIMIT;
-			}
-			continue;
+		++sendcnt;
+		chunk = send(sockfd, data + slen, dlen - slen, 0);
+		if (chunk < 0) {
+			update_trans_stat(rate, -1);
+			perror("[send]");
+			return ERR_SOCKUTIL_SEND_FAILED;
 		}
+		// Successfully sent.
+		slen += chunk;
+		update_trans_stat(rate, slen);
+		retrycnt = 0;
 	}
 
 	if (slen != dlen)
