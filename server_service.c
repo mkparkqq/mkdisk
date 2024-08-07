@@ -93,7 +93,7 @@ server_upload_service(int clsock, struct svc_req *req)
 	void *buf = NULL;
 	buf = malloc(flen);
 	if (NULL == buf) {
-		timestamp(MSEC, "[server_upload_service] [refuse] [malloc]");
+		timestamp(MSEC, "[server_upload_service] [refuse] [client (%d)] [malloc]", clsock);
 		set_resp_code(&resp, RESP_OUT_OF_MEMORY);
 		goto refuse_svc;
 	}
@@ -139,21 +139,22 @@ server_upload_service(int clsock, struct svc_req *req)
 		cnt++;
 		ssize_t chunk = recv(clsock, buf + rlen, flen - rlen, 0);
 		if (0 == chunk){
-			timestamp(MSEC, "client closed\n");
+			timestamp(MSEC, "[client (%d)] socket closed\n", clsock);
 			break;
 		} else if (chunk < 0) {
 			rollback_inven_cache(fid, req);
-			timestamp(MSEC, "[server_upload_service] [recv] %s", strerror(errno));
+			timestamp(MSEC, "[server_upload_service] [recv] [client (%d)] %s", clsock, strerror(errno));
 			return -1;
 		}
 		rlen += (ssize_t)chunk;
 	}
 	if (rlen == flen)
-		timestamp(MSEC, "Upload complete(%d). (%ldB/%ldB)", cnt, rlen, flen);
+		timestamp(MSEC, "[client (%d)] Transmission complete(%d). (%ldB/%ldB)", 
+				clsock, cnt, rlen, flen);
 	// Transmission failed. Rollback g_inven_cache.
 	else {
 		rollback_inven_cache(fid, req);
-		timestamp(MSEC, "[server_upload_service] paritally transmitted (%s)", req->fname);
+		timestamp(MSEC, "[server_upload_service] [client (%d)] paritally transmitted (%s)", clsock, req->fname);
 		free(buf);
 		return -1;
 	}
@@ -161,7 +162,7 @@ server_upload_service(int clsock, struct svc_req *req)
 	// Create new file
 	if (create_directory_if_not_exists(g_inven_cache.items[*fid].creator) < 0) {
 		rollback_inven_cache(fid, req);
-		timestamp(MSEC, "Failed to create new directory.");
+		timestamp(MSEC, "[client (%d)] Failed to create new directory.", clsock);
 		goto disk_failure;
 	}
 	char fpath[FS_PATH_MAX_LEN];
@@ -171,10 +172,11 @@ server_upload_service(int clsock, struct svc_req *req)
 
 	if (create_file(fpath, buf, flen) < 0) {
 		rollback_inven_cache(fid, req);
-		timestamp(MSEC, "Failed to create new file.");
+		timestamp(MSEC, "[client (%d)] Failed to create new file.", clsock);
 		goto disk_failure;
 	}
-	timestamp(MSEC, "Finished to create the file.");
+
+	timestamp(MSEC, "[client ($d)] Finished to create the file.", clsock);
 
 	set_resp_code(&resp, RESP_OK);
 
