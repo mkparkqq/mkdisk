@@ -44,8 +44,18 @@ init_serveraddr(const char *argv[])
 static int
 connect_server()
 {
+	int retrycnt = 0;
+
 	g_servsock = create_tcpsock();
-	if (connect(g_servsock, (struct sockaddr *)&g_client_status.sa, sizeof(g_client_status.sa)) < 0) {
+
+	while (retrycnt < 5) {
+		if (0 == connect(g_servsock, (struct sockaddr *)&g_client_status.sa, sizeof(g_client_status.sa)))
+			break;
+		retrycnt++;
+		usleep(1000 * 1000);
+	}
+
+	if (5 == retrycnt) {
 		perror("[connect]");
 		return -1;
 	}
