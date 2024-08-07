@@ -2,6 +2,8 @@
 
 Tibero onboarding project
 
+<img src="/img/download.gif" alt="client-download" />
+
 ## 서버가 제공하는 서비스
 
 * 업로드된 파일 목록 조회
