@@ -76,6 +76,7 @@ rollback_inven_cache(int* fid, struct svc_req *req)
 int 
 server_upload_service(int clsock, struct svc_req *req)
 {
+	int result = 0;
 	char tstamp_ms[TIMESTAMP_MS_LEN];
 	char tstamp[TIMESTAMP_LEN];
 	struct svc_resp resp;
@@ -154,7 +155,7 @@ server_upload_service(int clsock, struct svc_req *req)
 	// Transmission failed. Rollback g_inven_cache.
 	else {
 		rollback_inven_cache(fid, req);
-		timestamp(MSEC, "[server_upload_service] [client (%d)] paritally transmitted (%s)", clsock, req->fname);
+		timestamp(MSEC, "[server_upload_service] [client (%d)] partially transmitted (%d/%d)", clsock, rlen, flen);
 		free(buf);
 		return -1;
 	}
@@ -170,13 +171,14 @@ server_upload_service(int clsock, struct svc_req *req)
 	snprintf(fpath, FS_PATH_MAX_LEN, "%s/%s",
 			g_inven_cache.items[*fid].creator, req->fname);
 
-	if (create_file(fpath, buf, flen) < 0) {
+	result = create_file(fpath, buf, flen);
+	if (result < 0) {
 		rollback_inven_cache(fid, req);
-		timestamp(MSEC, "[client (%d)] Failed to create new file.", clsock);
+		timestamp(MSEC, "[client (%d)] [create_file] Failed to create new file. %s", clsock, futil_errstr(result));
 		goto disk_failure;
 	}
 
-	timestamp(MSEC, "[client ($d)] Finished to create the file.", clsock);
+	timestamp(MSEC, "[client (%d)] Finished to create the file.", clsock);
 
 	set_resp_code(&resp, RESP_OK);
 
