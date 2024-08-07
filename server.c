@@ -21,10 +21,7 @@ int g_running = 0;
 static struct queue *g_sworkerid_queue = NULL;
 static struct worker *g_sworker_pool = NULL;
 // Caches
-struct inventory g_inven_cache;
-static const char *g_item_cache_path = "inven_item.cache";
-static const char *g_fidq_cache_path = "inven_fidq.cache";
-static const char *g_nametb_cache_path = "inven_nametb.cache";
+struct inventory g_inventory;
 // Statistics
 static int g_session_count = 0;
 static int g_refused_count = 0;
@@ -65,43 +62,43 @@ timestamp(int msopt, const char *fmt, ...)
 static int
 init_inven_cache(size_t max_item, size_t bnum)
 {
-	g_inven_cache.capacity = max_item;
+	g_inventory.capacity = max_item;
 
-	g_inven_cache.items = (struct inven_item *) malloc(max_item * sizeof(struct inven_item));
-	if (NULL == g_inven_cache.items) {
+	g_inventory.items = (struct inven_item *) malloc(max_item * sizeof(struct inven_item));
+	if (NULL == g_inventory.items) {
 		timestamp(MSEC, "Failed to initialize item array.");
 		return -1;
 	}
-	g_inven_cache.fidq = init_queue(max_item, sizeof(int));
+	g_inventory.fidq = init_queue(max_item, sizeof(int));
 	for (int i = 0; i < max_item; i++) {
-		snprintf(g_inven_cache.items[i].status,
-				sizeof(g_inven_cache.items[i].status),
+		snprintf(g_inventory.items[i].status,
+				sizeof(g_inventory.items[i].status),
 				"%d", ITEM_STAT_DELETED);
-		enqueue(g_inven_cache.fidq, &i);
+		enqueue(g_inventory.fidq, &i);
 	}
 
-	if (NULL == g_inven_cache.fidq) {
+	if (NULL == g_inventory.fidq) {
 		timestamp(MSEC, "Failed to initialize fidq.");
-		free(g_inven_cache.items);
+		free(g_inventory.items);
 		return -1;
 	}
-	g_inven_cache.nametb = init_hashmap(bnum);
-	if (NULL == g_inven_cache.nametb) {
+	g_inventory.nametb = init_hashmap(bnum);
+	if (NULL == g_inventory.nametb) {
 		timestamp(MSEC, "Failed to initialize hashmap.");
-		free(g_inven_cache.items);
-		destruct_queue(g_inven_cache.fidq);
+		free(g_inventory.items);
+		destruct_queue(g_inventory.fidq);
 		return -1;
 	}
-	g_inven_cache.ilock = (pthread_rwlock_t *) malloc(max_item * sizeof(pthread_rwlock_t));
-	if (NULL == g_inven_cache.ilock) {
+	g_inventory.ilock = (pthread_rwlock_t *) malloc(max_item * sizeof(pthread_rwlock_t));
+	if (NULL == g_inventory.ilock) {
 		timestamp(MSEC, "Failed to initialize ilock.");
-		free(g_inven_cache.items);
-		destruct_queue(g_inven_cache.fidq);
-		free(g_inven_cache.ilock);
+		free(g_inventory.items);
+		destruct_queue(g_inventory.fidq);
+		free(g_inventory.ilock);
 		return -1;
 	}
 	for (int i = 0; i < max_item; i++)
-		pthread_rwlock_init(&g_inven_cache.ilock[i], NULL);
+		pthread_rwlock_init(&g_inventory.ilock[i], NULL);
 
 	timestamp(MSEC, "[init_inven_cache] successed.");
 	return 0;
@@ -168,7 +165,7 @@ init_server_instance(size_t max_item, size_t bucknum, size_t max_worker)
 	if (init_session_workers(max_worker) < 0)
 		return -1;
 	if (init_inven_cache(max_item, bucknum) < 0) {
-		timestamp(MSEC, "Failed to initialize g_inven_cache.");
+		timestamp(MSEC, "Failed to initialize g_inventory.");
 		destruct_queue(g_sworkerid_queue);
 		free(g_sworker_pool);
 		return -1;

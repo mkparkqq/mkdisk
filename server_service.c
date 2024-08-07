@@ -14,7 +14,7 @@
 #define NO_SUCH_FILE	0
 #define FS_PATH_MAX_LEN	256
 
-extern struct inventory g_inven_cache;
+extern struct inventory g_inventory;
 
 /*
  * 1: File exists.
@@ -23,7 +23,7 @@ extern struct inventory g_inven_cache;
 static int
 check_file_exists(const char *fname)
 {
-	if(NULL == find(g_inven_cache.nametb, fname))
+	if(NULL == find(g_inventory.nametb, fname))
 		return NO_SUCH_FILE;
 	return FILE_EXISTS;
 }
@@ -67,9 +67,9 @@ get_client_ipaddr(int sockfd, char *buf, size_t buflen)
 static void	
 rollback_inven_cache(int* fid, struct svc_req *req)
 {
-	snprintf(g_inven_cache.items[*fid].status, sizeof(g_inven_cache.items[*fid].status), "%d", ITEM_STAT_DELETED);
-	enqueue(g_inven_cache.fidq, (void *)fid);
-	rm_item(g_inven_cache.nametb, req->fname);
+	snprintf(g_inventory.items[*fid].status, sizeof(g_inventory.items[*fid].status), "%d", ITEM_STAT_DELETED);
+	enqueue(g_inventory.fidq, (void *)fid);
+	rm_item(g_inventory.nametb, req->fname);
 	free(fid);
 }
 
@@ -99,19 +99,19 @@ server_upload_service(int clsock, struct svc_req *req)
 		goto refuse_svc;
 	}
 	// 파일 이름 사용 가능하면 일단 nametb 선점
-	if (set(g_inven_cache.nametb, req->fname, (void *)fid, 0) < 0) {
+	if (set(g_inventory.nametb, req->fname, (void *)fid, 0) < 0) {
 		timestamp(MSEC, "[server_upload_service] [refuse] file already exists(%s)", req->fname);
 		set_resp_code(&resp, RESP_DUPLICATED);
 		goto refuse_svc;
 	}
-	// g_inven_cache.items에 빈 공간이 있는지 확인
-	if (dequeue(g_inven_cache.fidq, fid) < 0) {
+	// g_inventory.items에 빈 공간이 있는지 확인
+	if (dequeue(g_inventory.fidq, fid) < 0) {
 		timestamp(MSEC, "[server_upload_service] [refuse] fidq");
-		rm_item(g_inven_cache.nametb, req->fname); // rollback
+		rm_item(g_inventory.nametb, req->fname); // rollback
 		set_resp_code(&resp, RESP_INVENTORY_FULL);
 		goto refuse_svc;
 	}
-	set(g_inven_cache.nametb, req->fname, (void *)fid, 1);
+	set(g_inventory.nametb, req->fname, (void *)fid, 1);
 	// TODO 서버 disk  용량 검사
 
 	// Send response
@@ -121,17 +121,17 @@ server_upload_service(int clsock, struct svc_req *req)
 		return -1;
 	}
 
-	// g_inven_cache.items 배열 업데이트 (commit)
+	// g_inventory.items 배열 업데이트 (commit)
 	char clientip[IP_ADDRESS_LEN];
 	char ts[TIMESTAMP_LEN];
 	tstamp_sec(ts, TIMESTAMP_LEN);
 	get_client_ipaddr(clsock, clientip, IP_ADDRESS_LEN);
-	strncpy(g_inven_cache.items[*fid].creator, clientip, sizeof(g_inven_cache.items[*fid].creator));
-	strncpy(g_inven_cache.items[*fid].fname, req->fname, sizeof(g_inven_cache.items[*fid].fname));
-	strncpy(g_inven_cache.items[*fid].alv, req->alv, sizeof(g_inven_cache.items[*fid].alv));
-	strncpy(g_inven_cache.items[*fid].last_modified, ts, sizeof(g_inven_cache.items[*fid].last_modified));
-	snprintf(g_inven_cache.items[*fid].status, sizeof(g_inven_cache.items[*fid].status), "%d", ITEM_STAT_AVAILABLE);
-	snprintf(g_inven_cache.items[*fid].flen, sizeof(g_inven_cache.items[*fid].flen), "%s", req->flen);
+	strncpy(g_inventory.items[*fid].creator, clientip, sizeof(g_inventory.items[*fid].creator));
+	strncpy(g_inventory.items[*fid].fname, req->fname, sizeof(g_inventory.items[*fid].fname));
+	strncpy(g_inventory.items[*fid].alv, req->alv, sizeof(g_inventory.items[*fid].alv));
+	strncpy(g_inventory.items[*fid].last_modified, ts, sizeof(g_inventory.items[*fid].last_modified));
+	snprintf(g_inventory.items[*fid].status, sizeof(g_inventory.items[*fid].status), "%d", ITEM_STAT_AVAILABLE);
+	snprintf(g_inventory.items[*fid].flen, sizeof(g_inventory.items[*fid].flen), "%s", req->flen);
 	
 	// Receive file data.
 	ssize_t rlen = 0;
@@ -152,7 +152,7 @@ server_upload_service(int clsock, struct svc_req *req)
 	if (rlen == flen)
 		timestamp(MSEC, "[client (%d)] Transmission complete(%d). (%ldB/%ldB)", 
 				clsock, cnt, rlen, flen);
-	// Transmission failed. Rollback g_inven_cache.
+	// Transmission failed. Rollback g_inventory.
 	else {
 		rollback_inven_cache(fid, req);
 		timestamp(MSEC, "[server_upload_service] [client (%d)] partially transmitted (%d/%d)", clsock, rlen, flen);
@@ -161,7 +161,7 @@ server_upload_service(int clsock, struct svc_req *req)
 	}
 
 	// Create new file
-	if (create_directory_if_not_exists(g_inven_cache.items[*fid].creator) < 0) {
+	if (create_directory_if_not_exists(g_inventory.items[*fid].creator) < 0) {
 		rollback_inven_cache(fid, req);
 		timestamp(MSEC, "[client (%d)] Failed to create new directory.", clsock);
 		goto disk_failure;
@@ -169,7 +169,7 @@ server_upload_service(int clsock, struct svc_req *req)
 	char fpath[FS_PATH_MAX_LEN];
 	memset(fpath, '\0', FS_PATH_MAX_LEN);
 	snprintf(fpath, FS_PATH_MAX_LEN, "%s/%s",
-			g_inven_cache.items[*fid].creator, req->fname);
+			g_inventory.items[*fid].creator, req->fname);
 
 	result = create_file(fpath, buf, flen);
 	if (result < 0) {
@@ -251,7 +251,7 @@ server_download_service(int sockfd, struct svc_req *req)
 	int result = 0;
 
 	get_client_ipaddr(sockfd, clip, IP_ADDRESS_LEN);
-	fid = (int *) find(g_inven_cache.nametb, req->fname);
+	fid = (int *) find(g_inventory.nametb, req->fname);
 
 	// Check if the file is deleted.
 	if (NULL == fid) {
@@ -259,23 +259,23 @@ server_download_service(int sockfd, struct svc_req *req)
 		goto refuse_svc;
 	}
 
-	alv = atoi(g_inven_cache.items[*fid].alv);
-	flen = strtoll(g_inven_cache.items[*fid].flen, NULL, 10);
+	alv = atoi(g_inventory.items[*fid].alv);
+	flen = strtoll(g_inventory.items[*fid].flen, NULL, 10);
 
 	// Check access level.
-	if ((alv == PRIVATE_ACCESS) && (strcmp(clip, g_inven_cache.items[*fid].creator))) {
+	if ((alv == PRIVATE_ACCESS) && (strcmp(clip, g_inventory.items[*fid].creator))) {
 		snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_ACCESS_DENIED);
 		goto refuse_svc;
 	}
 
-	if (0 == pthread_rwlock_tryrdlock(&g_inven_cache.ilock[*fid])) {
+	if (0 == pthread_rwlock_tryrdlock(&g_inventory.ilock[*fid])) {
 		snprintf(fpath, IP_ADDRESS_LEN + FILE_NAME_LEN, "%s/%s",
-				g_inven_cache.items[*fid].creator, req->fname);
+				g_inventory.items[*fid].creator, req->fname);
 		// Check file exists.
 		if (access(fpath, F_OK) < 0) {
 			timestamp(MSEC, "[server_download_service] [client (%d)] [Miss (%s)]", sockfd, fpath);
 			snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_NO_SUCH_FILE);
-			pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
+			pthread_rwlock_unlock(&g_inventory.ilock[*fid]);
 			goto refuse_svc;
 		}
 		// Send OK response.
@@ -285,19 +285,19 @@ server_download_service(int sockfd, struct svc_req *req)
 		result = send_stream(sockfd, &resp, sizeof(struct svc_resp));
 		if(result < 0) {
 			timestamp(MSEC, "%s", sockutil_errstr(result));
-			pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
+			pthread_rwlock_unlock(&g_inventory.ilock[*fid]);
 			return -1;
 		}
 		// Send the file.
 		if (send_file(sockfd, fpath, flen, NULL) < 0) {
 			timestamp(MSEC, "%s", sockutil_errstr(result));
-			pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
+			pthread_rwlock_unlock(&g_inventory.ilock[*fid]);
 			timestamp(MSEC, "[server_download_service] [client (%d)] Download successed.",
 				sockfd);
 			return -1;
 		}
 		timestamp(MSEC, "[server_download_service] [client (%d)] File sended.", sockfd);
-		pthread_rwlock_unlock(&g_inven_cache.ilock[*fid]);
+		pthread_rwlock_unlock(&g_inventory.ilock[*fid]);
 		return 0;
 	} else {
 		snprintf(resp.code, RESP_CODE_LEN, "%d", RESP_MODIFYING);
@@ -327,7 +327,7 @@ server_inquiry_service(int sockfd, size_t max_item, struct svc_req *req)
 		return -1;
 	}
 
-	if(send_stream(sockfd, g_inven_cache.items, dlen) < 0) {
+	if(send_stream(sockfd, g_inventory.items, dlen) < 0) {
 		timestamp(MSEC, sockutil_errstr(result), result, dlen);
 		return -1;
 	}
