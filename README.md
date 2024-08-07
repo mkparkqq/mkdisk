@@ -110,3 +110,7 @@ Tibero onboarding project
 * 동적할당된 공간에 대한 주소를 삽입 직후 free하거나 스택 공간에 대한 주소를 삽입할 수 있다.
 
 <img src="/img/queue.png" alt="queue" />
+
+## 테스트
+
+[테스트 스크립트 설명](https://github.com/mkparkqq/mkdisk/tree/main/test) 참고
