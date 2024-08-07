@@ -2,6 +2,7 @@ client
 server
 Downloads
 data
+test_report.txt
 # Prerequisites
 *.d
 
