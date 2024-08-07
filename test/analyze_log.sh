@@ -24,15 +24,19 @@ et_ms=$(($eh*60*60*1000 + $em*60*1000 + $es*1000 + $ems))
 elapsed_time=$((et_ms - st_ms))
 
 connections=$(grep -c 'new connection' $LOG_FILE)
-# failed=$(grep -c 'FAIL' client_test.log)
 successed=$(grep -c 'Finished to create the file' $LOG_FILE)
-requests=$(($failed + $successed))
-
+transmissions=$(grep -c 'Transmission complete' $LOG_FILE)
 max_sessions=$(grep 'MAX_SESSIONS' ../server.h | awk '{print $3}')
 worker_num=$(grep 'SESSION_WORKER_NUM' ../server.h | awk '{print $3}')
 
-# max_sessions worker_num elapsed_time requests successed file_size
+# (request = max_sessions)
+# max_sessions worker_num elapsed_time transmissions successed file_size
 printf "%d %d %s %s %d %d %d %d\n" \
 		   $max_sessions $worker_num \
 		   "$start_time" "$end_time" \
-		   $elapsed_time $requests $successed $1 >> ./test_report.txt
+		   $elapsed_time $transmissions $successed $1 >> ./test_report.txt
+
+printf "%d %d %s %s %d %d %d %d\n" \
+		   $max_sessions $worker_num \
+		   "$start_time" "$end_time" \
+		   $elapsed_time $transmissions $successed $1
