@@ -77,9 +77,6 @@ terminate_client()
 	g_quit = 1;
 	set_status_msg(STAT_BAR_HIGHLIGHT, "Goodbye");
 	refresh_screen();
-	/*
-	usleep(1000 * 100);			// g_client_status.dcontent.opt_item이 free되기 전에 screen_worker가 화면을 업데이트하도록 기다림.
-	*/
 	destruct_termui();
 }
 
@@ -124,18 +121,15 @@ upload_service()
 			break;
 		set_status_msg(STAT_BAR_HIGHLIGHT, "No such file exists. Enter the file path.");
 		refresh_screen();
-		usleep(1000 * 100);
 	}
 	
 	set_status_msg(STAT_BAR_HIGHLIGHT, "public: 0, private: 1");
 	refresh_screen();
-	usleep(1000 * 100);
 	while (1) {
 		alv = fgetc(stdin) - '0';
 		if (alv == PUBLIC_ACCES || alv == PRIVATE_ACCESS)
 			break;
 		refresh_screen();
-		usleep(1000 * 100);
 	}
 
 	hide_cursor();
