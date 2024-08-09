@@ -15,7 +15,6 @@ struct hm_item {
 struct hashmap {
 	size_t bucknum;
 	size_t dsize;
-	size_t itemcnt;
 	struct list **buckets; 		// list *배열
 	size_t collision_count;
 };

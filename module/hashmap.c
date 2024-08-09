@@ -21,7 +21,6 @@ init_hashmap(size_t n)
 		return NULL;
 
 	map->bucknum = n;
-	map->itemcnt = 0;
 	map->buckets = (struct list **) malloc(n * sizeof(struct list *));
 
 	if (NULL == map->buckets) {
@@ -65,24 +64,29 @@ search_item_by_key(struct hashmap *map, const char *key)
 int 
 set(struct hashmap *map, const char *key, void *pdata, int opt)
 {
+	size_t h = hash(key, map->bucknum);
 	int overwrite= 0;
 	struct hm_item *item = NULL;
+	int ret = 0;
+
+	pthread_rwlock_wrlock(&map->buckets[h]->rwlock);
 
 	// Add new ht_item
 	item = search_item_by_key(map, key);
 	if (NULL == item) {
-		size_t h = hash(key, map->bucknum);
 		item = (struct hm_item *) malloc(sizeof(struct hm_item));
-		if (NULL == item)
-			return -1;
+		if (NULL == item) {
+			pthread_rwlock_unlock(&map->buckets[h]->rwlock);
+			return -2; // malloc failed
+		}
 		memset(item, 0x00, sizeof(struct hm_item));
 		strncpy(item->key, key, KEY_LEN_MAX);
 		item->ptr = pdata;
 		if (append(map->buckets[h], item) < 0) {
 			free(item);
-			return -1;
+			pthread_rwlock_unlock(&map->buckets[h]->rwlock);
+			return -2; // malloc failed
 		}
-		map->itemcnt++;
 	// Overwrite
 	} else {
 		if (0 == opt)
@@ -90,19 +94,26 @@ set(struct hashmap *map, const char *key, void *pdata, int opt)
 		item->ptr = pdata;
 	}
 
+	pthread_rwlock_unlock(&map->buckets[h]->rwlock);
+
 	return 0;
 }
 
 void 
 rm_item(struct hashmap *map, const char *key)
 {
+	size_t h = hash(key, map->bucknum);
+
+	pthread_rwlock_wrlock(&map->buckets[h]->rwlock);
+
 	struct hm_item *item = search_item_by_key(map, key);
 	if (NULL == item)
 		return;
 
-	size_t h = hash(key, map->bucknum);
 	rm_lnode(map->buckets[h], item);
-	map->itemcnt--;
+
+	pthread_rwlock_unlock(&map->buckets[h]->rwlock);
+
 	free(item);
 	return;
 }
@@ -110,8 +121,15 @@ rm_item(struct hashmap *map, const char *key)
 void * 
 find(struct hashmap *map, const char *key)
 {
+	size_t h = hash(key, map->bucknum);
+
+	pthread_rwlock_rdlock(&map->buckets[h]->rwlock);
+
 	struct hm_item *item = search_item_by_key(map, key);
-	if (NULL == item)
+
+	pthread_rwlock_unlock(&map->buckets[h]->rwlock);
+
+	if (NULL == item) 
 		return NULL;
 	return item->ptr;
 }
@@ -119,7 +137,14 @@ find(struct hashmap *map, const char *key)
 size_t 
 count_item(struct hashmap *map)
 {
-	return map->itemcnt;
+	int cnt = 0;
+	for (int i = 0; i < map->bucknum; i++) {
+		pthread_rwlock_rdlock(&map->buckets[i]->rwlock);
+		cnt += map->buckets[i]->nodecnt;
+		pthread_rwlock_unlock(&map->buckets[i]->rwlock);
+	}
+
+	return cnt;
 }
 
 // TODO
@@ -337,7 +362,7 @@ test_overwriting(int c)
 		snprintf(new_mocks[i].foo, 16, "DB-1-2-1_%d", i);
 		new_mocks[i].bar = 2 * i;
 		set(map, g_sample_keys[i], &new_mocks[i], 1);
-		if (c != map->itemcnt)
+		if (c != count_item(map))
 			goto failed;
 	}
 	for (int i = 0; i < c; i++) {

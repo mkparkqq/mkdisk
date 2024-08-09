@@ -20,11 +20,8 @@ init_list(size_t dsz)
 int 
 append(struct list *plist, void *pdata)
 {
-	pthread_rwlock_wrlock(&plist->rwlock);
-
 	struct lnode *node = (struct lnode *) malloc(sizeof(struct lnode));
 	if (NULL == node) {
-		pthread_rwlock_unlock(&plist->rwlock);
 		return -1;
 	}
 
@@ -40,7 +37,6 @@ append(struct list *plist, void *pdata)
 	plist->tail = node;
 	plist->nodecnt++;
 
-	pthread_rwlock_unlock(&plist->rwlock);
 
 	return 0;
 }
@@ -63,15 +59,10 @@ search_lnode(struct list* plist, const void *target)
 void *
 search_list(struct list *plist, const void *target)
 {
-	pthread_rwlock_rdlock(&plist->rwlock);
-
 	struct lnode *node = search_lnode(plist, target);
 	if (NULL == node) {
-		pthread_rwlock_unlock(&plist->rwlock);
 		return NULL;
 	}
-
-	pthread_rwlock_unlock(&plist->rwlock);
 
 	return node->ptr;
 }
@@ -79,11 +70,8 @@ search_list(struct list *plist, const void *target)
 void 
 rm_lnode(struct list *plist, const void *target)
 {
-	pthread_rwlock_wrlock(&plist->rwlock);
-
 	struct lnode *node = search_lnode(plist, target);
 	if (NULL == node) {
-		pthread_rwlock_unlock(&plist->rwlock);
 		return;
 	}
 
@@ -104,18 +92,13 @@ rm_lnode(struct list *plist, const void *target)
 	free(node);
 	plist->nodecnt--;
 
-	pthread_rwlock_unlock(&plist->rwlock);
-
 	return;
 }
 
 size_t 
 listlen(struct list *plist)
 {
-	pthread_rwlock_rdlock(&plist->rwlock);
 	int len = plist->nodecnt;
-	pthread_rwlock_unlock(&plist->rwlock);
-
 	return len;
 }
 
