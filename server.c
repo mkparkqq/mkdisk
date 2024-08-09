@@ -228,7 +228,7 @@ create_new_session(struct event *event)
 		return ERR_ACCEPT;
 
 	// Refuse connection.
-	if (g_session_count == MAX_SESSIONS) {
+	if (g_session_count == MAX_CONNECTIONS) {
 		g_refused_count++;
 		close(clsock);
 		return 0;
@@ -243,7 +243,7 @@ create_new_session(struct event *event)
 	g_session_count++;
 
 	timestamp(MSEC, "[new connection (%d/%d)] Client (%d) %s:%d", 
-			g_session_count, MAX_SESSIONS,
+			g_session_count, MAX_CONNECTIONS,
 			clsock, inet_ntoa(claddr.sin_addr), 
 			ntohs(claddr.sin_port));
 
@@ -302,7 +302,7 @@ destruct_session(struct event *event)
 {
 	g_session_count--;
 	timestamp(MSEC, "[disconnected (%d/%d)] [client (%d)]", 
-			g_session_count, MAX_SESSIONS, event->sockfd);
+			g_session_count, MAX_CONNECTIONS, event->sockfd);
 	close(event->sockfd);
 	remove_event(event);
 	return 0;
@@ -383,7 +383,7 @@ init_server_socket(int portno)
 			inet_ntoa(serv_addr.sin_addr), portno);
 #endif // _DEBUG_
 
-	if (listen(listener_fd, MAX_SESSIONS) < 0) {
+	if (listen(listener_fd, MAX_CONNECTIONS) < 0) {
 		perror("[listen]");
 		return ERR_LISTEN;
 	}
@@ -415,7 +415,7 @@ handle_events()
 				destruct_session(event);
 			} else if (events[i].events & EPOLLHUP) {
 				destruct_session(event);
-			} else if (EVENT_NEW_SESSION == event_type) {
+			} else if (EVENT_NEW_CONNECTION == event_type) {
 				// 클라이언트 접속 이벤트.
 				create_new_session(event);
 			} else if (EVENT_SERVICE_REQUEST == event_type){
@@ -454,7 +454,7 @@ main (int argc, const char *argv[])
 		return 1;
 	}
 
-	register_event(listener_fd, EVENT_NEW_SESSION, 
+	register_event(listener_fd, EVENT_NEW_CONNECTION, 
 			EPOLLIN | EPOLLRDHUP);
 	register_worker_events(SESSION_WORKER_NUM);
 
