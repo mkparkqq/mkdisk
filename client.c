@@ -57,6 +57,7 @@ connect_server()
 
 	if (5 == retrycnt) {
 		perror("[connect]");
+		printf("Full house");
 		return -1;
 	}
 
