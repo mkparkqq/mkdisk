@@ -65,7 +65,7 @@ get_client_ipaddr(int sockfd, char *buf, size_t buflen)
 }
 
 static void	
-rollback_inven_cache(int* fid, struct svc_req *req)
+rollback_inventory(int* fid, struct svc_req *req)
 {
 	snprintf(g_inventory.items[*fid].status, sizeof(g_inventory.items[*fid].status), "%d", ITEM_STAT_DELETED);
 	enqueue(g_inventory.fidq, (void *)fid);
@@ -130,7 +130,6 @@ server_upload_service(int clsock, struct svc_req *req)
 	strncpy(g_inventory.items[*fid].fname, req->fname, sizeof(g_inventory.items[*fid].fname));
 	strncpy(g_inventory.items[*fid].alv, req->alv, sizeof(g_inventory.items[*fid].alv));
 	strncpy(g_inventory.items[*fid].last_modified, ts, sizeof(g_inventory.items[*fid].last_modified));
-	snprintf(g_inventory.items[*fid].status, sizeof(g_inventory.items[*fid].status), "%d", ITEM_STAT_AVAILABLE);
 	snprintf(g_inventory.items[*fid].flen, sizeof(g_inventory.items[*fid].flen), "%s", req->flen);
 	
 	// Receive file data.
@@ -143,7 +142,7 @@ server_upload_service(int clsock, struct svc_req *req)
 			timestamp(MSEC, "[client (%d)] socket closed\n", clsock);
 			break;
 		} else if (chunk < 0) {
-			rollback_inven_cache(fid, req);
+			rollback_inventory(fid, req);
 			timestamp(MSEC, "[server_upload_service] [recv] [client (%d)] %s", clsock, strerror(errno));
 			return -1;
 		}
@@ -154,7 +153,7 @@ server_upload_service(int clsock, struct svc_req *req)
 				clsock, cnt, rlen, flen);
 	// Transmission failed. Rollback g_inventory.
 	else {
-		rollback_inven_cache(fid, req);
+		rollback_inventory(fid, req);
 		timestamp(MSEC, "[server_upload_service] [client (%d)] partially transmitted (%d/%d)", clsock, rlen, flen);
 		free(buf);
 		return -1;
@@ -162,7 +161,7 @@ server_upload_service(int clsock, struct svc_req *req)
 
 	// Create new file
 	if (create_directory_if_not_exists(g_inventory.items[*fid].creator) < 0) {
-		rollback_inven_cache(fid, req);
+		rollback_inventory(fid, req);
 		timestamp(MSEC, "[client (%d)] Failed to create new directory.", clsock);
 		goto disk_failure;
 	}
@@ -173,10 +172,12 @@ server_upload_service(int clsock, struct svc_req *req)
 
 	result = create_file(fpath, buf, flen);
 	if (result < 0) {
-		rollback_inven_cache(fid, req);
+		rollback_inventory(fid, req);
 		timestamp(MSEC, "[client (%d)] [create_file] Failed to create new file. %s", clsock, futil_errstr(result));
 		goto disk_failure;
 	}
+
+	snprintf(g_inventory.items[*fid].status, sizeof(g_inventory.items[*fid].status), "%d", ITEM_STAT_AVAILABLE);
 
 	timestamp(MSEC, "[client (%d)] Finished to create the file.", clsock);
 
