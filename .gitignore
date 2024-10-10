@@ -3,6 +3,7 @@ server
 Downloads
 data
 test_report.txt
+.ycm_extra_conf.py
 # Prerequisites
 *.d
 
