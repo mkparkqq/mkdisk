@@ -9,8 +9,8 @@
 #define TIMESTAMP_MSEC_LEN			25
 #define TIMESTAMP_SEC_LEN			20
 #define MAX_FILE_ITEMS				10000
-#define MAX_CONNECTIONS				50
-#define SESSION_WORKER_NUM			30
+#define MAX_CONNECTIONS				1000
+#define SESSION_WORKER_NUM			500
 #define CLI_ARGS_IDX_PORTNO			1
 #define DEFAULT_SERVER_PORT			23455
 #define HASHMAP_BUCKET_NUM			100
@@ -59,6 +59,13 @@ struct inventory {
 	pthread_rwlock_t *ilock;	// items 보호
 };
 
+/**
+ * @brief  timestamp 출력 함수
+ *
+ * @param msopt 1이면 ms단위로 출력. 0이면 s단위로 출력.
+ * @param fmt 출력 형식 지정 문자열.
+ * @param ...
+ */
 void timestamp(int msopt, const char *fmt, ...);
 
 #endif // _SERVER_H_
