@@ -18,6 +18,14 @@ struct queue {
 	pthread_rwlock_t rwlock;
 };
 
+/**
+ * @brief Create a new queue instance.
+ *
+ * @param capacity Default capacity of the queue.
+ * @param esz An entry size of the queue.
+ *
+ * @returns  A pointer to the queue.
+ */
 struct queue *init_queue(size_t capacity, size_t esz);
 int enqueue(struct queue *q, const void *entry);   			// Deep copy
 int dequeue(struct queue *q, void *entry);					// Deep copy
