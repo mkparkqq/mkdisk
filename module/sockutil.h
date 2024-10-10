@@ -38,11 +38,12 @@ int create_tcpsock();
  */
 int64_t send_stream(int sockfd, void *data, int64_t dlen);
 
-/*
- * Send data(.data) to the endpoint(.sockfd).
- *
+/**
+ * @brief Send data(.data) to the endpoint(.sockfd).
+ * 
  * @param sockfd - Receiver.
  * @param rate - Transmission status in real-time.
+ * @return int The size of the data.
  */
 int64_t send_stream_nblock(int sockfd, void *data, int64_t dlen, struct trans_stat *rate);
 
